@@ -3,13 +3,11 @@ import { getSupabaseClient } from "../lib/supabase";
 export type FavoriteState = {
   favorite_artist: number | null;
   favorite_work: number | null;
-  favorite_museum: number | null;
 };
 
 const initialFavoriteState: FavoriteState = {
   favorite_artist: null,
   favorite_work: null,
-  favorite_museum: null,
 };
 
 const tableName = "user";
@@ -22,7 +20,7 @@ const readFavoriteRecord = async (userId: string) => {
 
   const byId = await client
     .from(tableName)
-    .select("favorite_artist, favorite_work, favorite_museum")
+    .select("favorite_artist, favorite_work")
     .eq("id", userId)
     .maybeSingle();
 
@@ -32,7 +30,7 @@ const readFavoriteRecord = async (userId: string) => {
 
   const byUserId = await client
     .from(tableName)
-    .select("favorite_artist, favorite_work, favorite_museum")
+    .select("favorite_artist, favorite_work")
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -82,7 +80,6 @@ export const fetchUserFavorites = async (
   return {
     favorite_artist: result.data.favorite_artist ?? null,
     favorite_work: result.data.favorite_work ?? null,
-    favorite_museum: result.data.favorite_museum ?? null,
   };
 };
 
@@ -92,8 +89,4 @@ export const setFavoriteArtist = async (userId: string, artistId: number) => {
 
 export const setFavoriteWork = async (userId: string, workId: number) => {
   return updateFavoriteRecord(userId, { favorite_work: workId });
-};
-
-export const setFavoriteMuseum = async (userId: string, museumId: number) => {
-  return updateFavoriteRecord(userId, { favorite_museum: museumId });
 };

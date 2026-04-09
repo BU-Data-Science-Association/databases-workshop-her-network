@@ -2,33 +2,28 @@ import { useEffect, useState, type FormEvent } from "react";
 import "./App.css";
 import {
   type Artist,
-  type Museum,
   type Work,
   fetchArtists,
-  fetchMuseums,
   fetchWorks,
 } from "./services/artData";
 import {
   type FavoriteState,
   fetchUserFavorites,
   setFavoriteArtist,
-  setFavoriteMuseum,
   setFavoriteWork,
 } from "./services/favorites";
 import { getSupabaseClient, isSupabaseConfigured } from "./lib/supabase";
 
-type ActiveTab = "paintings" | "artists" | "museums";
+type ActiveTab = "paintings" | "artists";
 type AuthMode = "signin" | "signup";
 
 function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("paintings");
   const [works, setWorks] = useState<Work[]>([]);
   const [artists, setArtists] = useState<Artist[]>([]);
-  const [museums, setMuseums] = useState<Museum[]>([]);
   const [statusMessage, setStatusMessage] = useState("");
 
   const [userId, setUserId] = useState<string | null>(null);
-  const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -38,7 +33,6 @@ function App() {
   const [favorites, setFavorites] = useState<FavoriteState>({
     favorite_artist: null,
     favorite_work: null,
-    favorite_museum: null,
   });
   const [favoriteSavingKey, setFavoriteSavingKey] = useState<string | null>(
     null,
@@ -81,10 +75,9 @@ function App() {
     let isCancelled = false;
 
     const loadData = async () => {
-      const [workRows, artistRows, museumRows] = await Promise.all([
+      const [workRows, artistRows] = await Promise.all([
         fetchWorks(),
         fetchArtists(),
-        fetchMuseums(),
       ]);
 
       if (isCancelled) {
@@ -93,13 +86,8 @@ function App() {
 
       setWorks(workRows);
       setArtists(artistRows);
-      setMuseums(museumRows);
 
-      if (
-        workRows.length === 0 &&
-        artistRows.length === 0 &&
-        museumRows.length === 0
-      ) {
+      if (workRows.length === 0 && artistRows.length === 0) {
         setStatusMessage(
           "No data rows yet. Load table data in Supabase during the workshop.",
         );
@@ -126,7 +114,6 @@ function App() {
       setFavorites({
         favorite_artist: null,
         favorite_work: null,
-        favorite_museum: null,
       });
       return;
     }
@@ -168,7 +155,6 @@ function App() {
     setUserId(nextUserId);
     setEmail("");
     setPassword("");
-    setAuthOpen(false);
     setStatusMessage("");
   };
 
@@ -188,18 +174,8 @@ function App() {
     setStatusMessage("");
   };
 
-  const requireSignIn = () => {
-    if (userId) {
-      return true;
-    }
-
-    setAuthOpen(true);
-    setStatusMessage("Sign in first to save favorites.");
-    return false;
-  };
-
   const saveArtistFavorite = async (artistId: number) => {
-    if (!userId || !requireSignIn()) {
+    if (!userId) {
       return;
     }
 
@@ -217,7 +193,7 @@ function App() {
   };
 
   const saveWorkFavorite = async (workId: number) => {
-    if (!userId || !requireSignIn()) {
+    if (!userId) {
       return;
     }
 
@@ -234,30 +210,14 @@ function App() {
     setStatusMessage("Favorite painting saved.");
   };
 
-  const saveMuseumFavorite = async (museumId: number) => {
-    if (!userId || !requireSignIn()) {
-      return;
-    }
-
-    setFavoriteSavingKey(`museum-${museumId}`);
-    const errorMessage = await setFavoriteMuseum(userId, museumId);
-    setFavoriteSavingKey(null);
-
-    if (errorMessage) {
-      setStatusMessage(errorMessage);
-      return;
-    }
-
-    setFavorites((current) => ({ ...current, favorite_museum: museumId }));
-    setStatusMessage("Favorite museum saved.");
-  };
-
   return (
     <main className="app-shell">
       <header className="app-header">
         <div>
           <h1>Art Workshop Demo</h1>
-          <p className="subtitle">Minimal app shell for Supabase wiring.</p>
+          <p className="subtitle">
+            Auth is prebuilt. Workshop focus is data + favorites.
+          </p>
         </div>
         <div className="auth-area">
           {userId ? (
@@ -265,18 +225,12 @@ function App() {
               Sign out
             </button>
           ) : (
-            <button
-              className="button"
-              onClick={() => setAuthOpen((isOpen) => !isOpen)}
-              type="button"
-            >
-              Sign in
-            </button>
+            <p className="subtitle">Signed out</p>
           )}
         </div>
       </header>
 
-      {!userId && authOpen ? (
+      {!userId ? (
         <section className="auth-panel" aria-label="Authentication form">
           <h2>{authMode === "signup" ? "Create account" : "Sign in"}</h2>
           <form onSubmit={handleAuthSubmit}>
@@ -346,13 +300,6 @@ function App() {
         >
           Artists
         </button>
-        <button
-          className={activeTab === "museums" ? "tab active" : "tab"}
-          onClick={() => setActiveTab("museums")}
-          type="button"
-        >
-          Museums
-        </button>
       </nav>
 
       {statusMessage ? <p className="status-message">{statusMessage}</p> : null}
@@ -363,9 +310,9 @@ function App() {
             <thead>
               <tr>
                 <th>ID</th>
+                <th>Image</th>
                 <th>Name</th>
                 <th>Artist ID</th>
-                <th>Museum ID</th>
                 <th>Favorite</th>
               </tr>
             </thead>
@@ -380,9 +327,20 @@ function App() {
                 works.map((work) => (
                   <tr key={work.work_id}>
                     <td>{work.work_id}</td>
+                    <td>
+                      {work.image_url ? (
+                        <img
+                          alt={work.name}
+                          className="work-image"
+                          loading="lazy"
+                          src={work.image_url}
+                        />
+                      ) : (
+                        <span className="empty-image">No image</span>
+                      )}
+                    </td>
                     <td>{work.name}</td>
                     <td>{work.artist_id}</td>
-                    <td>{work.museum_id}</td>
                     <td>
                       <button
                         className={
@@ -449,57 +407,6 @@ function App() {
                         type="button"
                       >
                         {favorites.favorite_artist === artist.artist_id
-                          ? "Favorited"
-                          : "Favorite"}
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        ) : null}
-
-        {activeTab === "museums" ? (
-          <table>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Name</th>
-                <th>City</th>
-                <th>Country</th>
-                <th>Favorite</th>
-              </tr>
-            </thead>
-            <tbody>
-              {museums.length === 0 ? (
-                <tr>
-                  <td className="empty" colSpan={5}>
-                    No museums to display.
-                  </td>
-                </tr>
-              ) : (
-                museums.map((museum) => (
-                  <tr key={museum.museum_id}>
-                    <td>{museum.museum_id}</td>
-                    <td>{museum.name}</td>
-                    <td>{museum.city || "-"}</td>
-                    <td>{museum.country || "-"}</td>
-                    <td>
-                      <button
-                        className={
-                          favorites.favorite_museum === museum.museum_id
-                            ? "favorite active"
-                            : "favorite"
-                        }
-                        disabled={
-                          !userId ||
-                          favoriteSavingKey === `museum-${museum.museum_id}`
-                        }
-                        onClick={() => saveMuseumFavorite(museum.museum_id)}
-                        type="button"
-                      >
-                        {favorites.favorite_museum === museum.museum_id
                           ? "Favorited"
                           : "Favorite"}
                       </button>

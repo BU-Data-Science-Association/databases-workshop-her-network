@@ -11,14 +11,7 @@ export type Work = {
   work_id: number;
   name: string;
   artist_id: number;
-  museum_id: number;
-};
-
-export type Museum = {
-  museum_id: number;
-  name: string;
-  city: string | null;
-  country: string | null;
+  image_url: string | null;
 };
 
 export const fetchArtists = async (): Promise<Artist[]> => {
@@ -48,7 +41,7 @@ export const fetchWorks = async (): Promise<Work[]> => {
 
   const { data, error } = await client
     .from("work")
-    .select("work_id, name, artist_id, museum_id")
+    .select("work_id, name, artist_id")
     .order("work_id", { ascending: true })
     .limit(200);
 
@@ -56,24 +49,53 @@ export const fetchWorks = async (): Promise<Work[]> => {
     return [];
   }
 
-  return data ?? [];
+  const rows =
+    (data as { work_id: number; name: string; artist_id: number }[] | null) ??
+    [];
+
+  const imageMap = await fetchWorkImageMap();
+
+  return rows.map((row) => ({
+    work_id: row.work_id,
+    name: row.name,
+    artist_id: row.artist_id,
+    image_url: imageMap.get(row.work_id) ?? null,
+  }));
 };
 
-export const fetchMuseums = async (): Promise<Museum[]> => {
+const fetchWorkImageMap = async (): Promise<Map<number, string>> => {
   const client = getSupabaseClient();
   if (!client) {
-    return [];
+    return new Map();
   }
 
   const { data, error } = await client
-    .from("museum")
-    .select("museum_id, name, city, country")
-    .order("museum_id", { ascending: true })
+    .from("image_link")
+    .select("work_id, thumbnail_small_url, thumbnail_large_url, url")
     .limit(200);
 
   if (error) {
-    return [];
+    return new Map();
   }
 
-  return data ?? [];
+  const imageRows =
+    (data as
+      | {
+          work_id: number;
+          thumbnail_small_url: string | null;
+          thumbnail_large_url: string | null;
+          url: string | null;
+        }[]
+      | null) ?? [];
+
+  const imageMap = new Map<number, string>();
+  imageRows.forEach((row) => {
+    const preferredImage =
+      row.thumbnail_small_url ?? row.thumbnail_large_url ?? row.url;
+    if (preferredImage) {
+      imageMap.set(row.work_id, preferredImage);
+    }
+  });
+
+  return imageMap;
 };

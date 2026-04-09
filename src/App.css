@@ -16,6 +16,10 @@
   margin: 8px 0 0;
 }
 
+.auth-area .subtitle {
+  margin-top: 10px;
+}
+
 .auth-area {
   align-items: start;
   display: flex;
@@ -143,6 +147,19 @@ td {
   color: var(--muted);
   padding: 18px 12px;
   text-align: center;
+}
+
+.work-image {
+  border-radius: 6px;
+  display: block;
+  height: 56px;
+  object-fit: cover;
+  width: 56px;
+}
+
+.empty-image {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .favorite {
