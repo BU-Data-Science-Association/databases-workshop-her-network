@@ -43,7 +43,15 @@ In Supabase Dashboard:
 - Go to Authentication → Settings → Email Auth
 - Disable "Enable email confirmations"
 
-### 2. Run Database Migrations
+### 2. Import CSV Data
+
+In Supabase Table Editor, import:
+
+- `data/artist.csv` → `artist` table
+- `data/work.csv` → `work` table
+- `data/image_link.csv` → `image_link` table
+
+### 3. Run Database Migrations
 
 In Supabase SQL Editor, execute in order:
 
@@ -56,14 +64,6 @@ This creates four tables:
 - `work` - Artwork records linked to artists
 - `image_link` - Image URLs mapped to works
 - `user` - User favorites linked to auth accounts
-
-### 3. Import CSV Data
-
-In Supabase Table Editor, import:
-
-- `data/artist.csv` → `artist` table
-- `data/work.csv` → `work` table
-- `data/image_link.csv` → `image_link` table
 
 ### 4. Test the Application
 
