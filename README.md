@@ -1,125 +1,102 @@
-# Databases Workshop 3: Supabase Art Explorer
+# BU DSA x Boston Hacks Databases Workshop: Supabase Art Explorer
 
-This project is intentionally minimal.
-Authentication is already built in, and the workshop focuses on data loading plus favorites.
+Learn Supabase fundamentals by building an authenticated art gallery with user favorites. Authentication is pre-built. You will focus on database setup, data loading, and user-specific data.
 
-## GitHub Codespaces Support
+## Workshop Goals
 
-This project is configured to work with GitHub Codespaces! Simply:
-1. Click the "Code" button on GitHub
-2. Select "Codespaces" tab
-3. Click "Create codespace on main"
+1. Set up Supabase tables and Row Level Security policies
+2. Import CSV data into PostgreSQL tables
+3. Query data through Supabase client
+4. Store user-specific data linked to authentication
 
-The environment will automatically set up with Node.js 20 and run `npm install`. See `.devcontainer/README.md` for more details.
+## Setup
 
-## What is implemented now
+### Option 1: GitHub Codespaces
 
-1. Users must create an account before any tables are visible.
-2. Auth uses a simple email/password signup flow with one submit button.
-3. Signed-in users can sign out from the top-right button.
-4. Two data views are available: Paintings and Artists.
-5. Paintings include image previews sourced by `work_id`.
-6. Favorite actions are available for artists and paintings only.
+1. Click "Code" → "Codespaces" → "Create codespace on main"
+2. Wait for automatic setup to complete
 
-## Quick Start - IMPORTANT SETUP STEPS
-
-**Before creating any accounts, you must:**
-
-1. **Disable email confirmation in Supabase:**
-   - Go to Supabase Dashboard → Authentication → Settings → Email Auth
-   - Turn OFF "Enable email confirmations"
-   - This allows immediate access after account creation
-
-2. **Run the database migrations:**
-   - Open Supabase SQL Editor
-   - First, copy and paste the entire contents of `supabase/migrations/20260409_create_art_tables.sql`
-   - Execute it (this creates the artist, work, and image_link tables with RLS policies)
-   - Then, copy and paste the entire contents of `supabase/migrations/20260409_create_user_favorites.sql`
-   - Execute it (this creates the user table, trigger, and policies)
-
-**If you skip these steps, account creation will fail or users won't be created in the database.**
-
-## Install and run
+### Option 2: Local Development
 
 ```bash
 npm install
 npm run dev
 ```
 
-## Environment variables
+### Environment Variables
 
-Create a `.env.local` file in the project root:
+Create `.env.local` in the project root:
 
 ```env
 VITE_SUPABASE_URL=your_supabase_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
-Without these values, the app still runs but remains in placeholder mode.
+Get these from your Supabase project settings under API.
 
-**For GitHub Codespaces:** You can either create `.env.local` manually or set up Codespaces secrets for reusable credentials across multiple codespaces.
+## Workshop Steps
 
-## Supabase tables expected
+### 1. Configure Supabase Authentication
 
-Source tables:
+In Supabase Dashboard:
 
-1. `artist`
-2. `work`
-3. `image_link` (maps image urls to `work_id`)
+- Go to Authentication → Settings → Email Auth
+- Disable "Enable email confirmations"
 
-User favorites table:
+### 2. Run Database Migrations
 
-1. `user.favorite_artist`
-2. `user.favorite_work`
+In Supabase SQL Editor, execute in order:
 
-The app stores one id per favorite column (latest selection wins).
+1. Copy and run `supabase/migrations/20260409_create_art_tables.sql`
+2. Copy and run `supabase/migrations/20260409_create_user_favorites.sql`
 
-Migration files are included at:
+This creates four tables:
 
-- `supabase/migrations/20260409_create_art_tables.sql` (creates artist, work, image_link tables)
-- `supabase/migrations/20260409_create_user_favorites.sql` (creates user favorites table)
+- `artist` - Artist records with biographical data
+- `work` - Artwork records linked to artists
+- `image_link` - Image URLs mapped to works
+- `user` - User favorites linked to auth accounts
 
-## User/auth connection
+### 3. Import CSV Data
 
-The favorites table is directly keyed by `auth.users.id`.
-Each authenticated user has exactly one row in `public."user"`, and favorites update that row.
+In Supabase Table Editor, import:
 
-The included migration also adds:
+- `data/artist.csv` → `artist` table
+- `data/work.csv` → `work` table
+- `data/image_link.csv` → `image_link` table
 
-1. Trigger to auto-create a `public."user"` row when a new auth user is created.
-2. Backfill insert so existing auth users also get an empty `public."user"` row.
-3. RLS policies so users can read/update only their own row.
-4. `updated_at` trigger for audit clarity.
+### 4. Test the Application
 
-## Run the migrations
+1. Start the dev server: `npm run dev`
+2. Create an account with any email and password
+3. Verify you see paintings and artists
+4. Click "Favorite" on a painting and an artist
+5. In Supabase Table Editor, check the `user` table to see your favorites saved
 
-1. Open Supabase SQL Editor.
-2. First, paste and run the SQL in `supabase/migrations/20260409_create_art_tables.sql`.
-3. Then, paste and run the SQL in `supabase/migrations/20260409_create_user_favorites.sql`.
+## Database Architecture
 
-Or if you use Supabase CLI migration workflow, run your normal `supabase migration up` flow.
+### Authentication Flow
 
-## Table shape
+- Supabase handles user authentication in `auth.users`
+- A database trigger auto-creates a row in `public.user` for each new user
+- RLS policies ensure users can only read/write their own data
 
-```sql
-create table if not exists public."user" (
-  id uuid primary key references auth.users(id) on delete cascade,
-  favorite_artist bigint,
-  favorite_work bigint,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-```
+### Data Relationships
 
-## Workshop flow
+- Each `work` references an `artist` by `artist_id`
+- Each `work` can have an `image_link` by `work_id`
+- Each `user` stores one `favorite_artist` and one `favorite_work`
 
-1. Complete the setup steps above (disable email confirmation and run both migrations).
-2. Import CSV data from the `data/` folder into the tables in Supabase:
-   - Import `data/artist.csv` into the `artist` table
-   - Import `data/work.csv` into the `work` table
-   - Import `data/image_link.csv` into the `image_link` table
-3. Start the app with `npm run dev`.
-4. Create an account with email/password.
-5. Browse Paintings and Artists tabs - you should now see data!
-6. Favorite a painting and artist while signed in.
-7. Verify ids are written to `user.favorite_work` and `user.favorite_artist` in Supabase.
+### Key Files
+
+- `src/services/artData.ts` - Data fetching logic
+- `src/services/favorites.ts` - User favorites logic
+- `src/lib/supabase.ts` - Supabase client setup
+
+## What You'll Learn
+
+1. How to structure PostgreSQL tables in Supabase
+2. How Row Level Security (RLS) protects user data
+3. How database triggers automate data management
+4. How to query related data with the Supabase client
+5. How to link application data to authenticated users
