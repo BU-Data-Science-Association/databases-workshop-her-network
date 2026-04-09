@@ -21,10 +21,12 @@ Authentication is already built in, and the workshop focuses on data loading plu
    - Turn OFF "Enable email confirmations"
    - This allows immediate access after account creation
 
-2. **Run the database migration:**
+2. **Run the database migrations:**
    - Open Supabase SQL Editor
-   - Copy and paste the entire contents of `supabase/migrations/20260409_create_user_favorites.sql`
-   - Execute the migration (this creates the user table, trigger, and policies)
+   - First, copy and paste the entire contents of `supabase/migrations/20260409_create_art_tables.sql`
+   - Execute it (this creates the artist, work, and image_link tables with RLS policies)
+   - Then, copy and paste the entire contents of `supabase/migrations/20260409_create_user_favorites.sql`
+   - Execute it (this creates the user table, trigger, and policies)
 
 **If you skip these steps, account creation will fail or users won't be created in the database.**
 
@@ -61,9 +63,10 @@ User favorites table:
 
 The app stores one id per favorite column (latest selection wins).
 
-Migration file for this table and policies is included at:
+Migration files are included at:
 
-`supabase/migrations/20260409_create_user_favorites.sql`
+- `supabase/migrations/20260409_create_art_tables.sql` (creates artist, work, image_link tables)
+- `supabase/migrations/20260409_create_user_favorites.sql` (creates user favorites table)
 
 ## User/auth connection
 
@@ -77,11 +80,11 @@ The included migration also adds:
 3. RLS policies so users can read/update only their own row.
 4. `updated_at` trigger for audit clarity.
 
-## Run the migration
+## Run the migrations
 
 1. Open Supabase SQL Editor.
-2. Paste the SQL in `supabase/migrations/20260409_create_user_favorites.sql`.
-3. Run it once per project.
+2. First, paste and run the SQL in `supabase/migrations/20260409_create_art_tables.sql`.
+3. Then, paste and run the SQL in `supabase/migrations/20260409_create_user_favorites.sql`.
 
 Or if you use Supabase CLI migration workflow, run your normal `supabase migration up` flow.
 
@@ -99,10 +102,13 @@ create table if not exists public."user" (
 
 ## Workshop flow
 
-1. Complete the setup steps above (disable email confirmation and run migration).
-2. Start the app with `npm run dev`.
-3. Create an account with email/password.
-4. Import CSV data into `artist`, `work`, and `image_link` tables in Supabase.
-5. Browse Paintings and Artists tabs.
+1. Complete the setup steps above (disable email confirmation and run both migrations).
+2. Import CSV data from the `data/` folder into the tables in Supabase:
+   - Import `data/artist.csv` into the `artist` table
+   - Import `data/work.csv` into the `work` table
+   - Import `data/image_link.csv` into the `image_link` table
+3. Start the app with `npm run dev`.
+4. Create an account with email/password.
+5. Browse Paintings and Artists tabs - you should now see data!
 6. Favorite a painting and artist while signed in.
 7. Verify ids are written to `user.favorite_work` and `user.favorite_artist` in Supabase.

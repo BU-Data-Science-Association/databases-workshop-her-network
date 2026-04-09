@@ -49,7 +49,8 @@ const fetchArtistRows = async (
     .limit(200);
 
   if (error) {
-    return [];
+    console.error("Error fetching artists:", error);
+    throw new Error(`Failed to fetch artists: ${error.message}`);
   }
 
   return (data as ArtistRow[] | null) ?? [];
@@ -63,7 +64,8 @@ const fetchWorkRows = async (client: SupabaseClient): Promise<WorkRow[]> => {
     .limit(200);
 
   if (error) {
-    return [];
+    console.error("Error fetching works:", error);
+    throw new Error(`Failed to fetch works: ${error.message}`);
   }
 
   return (data as WorkRow[] | null) ?? [];
@@ -78,7 +80,8 @@ const fetchImageLinkRows = async (
     .limit(200);
 
   if (error) {
-    return [];
+    console.error("Error fetching image links:", error);
+    throw new Error(`Failed to fetch image links: ${error.message}`);
   }
 
   return (data as ImageLinkRow[] | null) ?? [];

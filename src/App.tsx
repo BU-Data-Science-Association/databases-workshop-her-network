@@ -100,10 +100,12 @@ function App() {
       }
     };
 
-    loadData().catch(() => {
+    loadData().catch((error) => {
       if (!isCancelled) {
+        const errorMessage = error instanceof Error ? error.message : "Unknown error";
+        console.error("Failed to load data:", error);
         setStatusMessage(
-          "Could not fetch records yet. Continue wiring queries during the workshop.",
+          `Error loading data: ${errorMessage}. Check the browser console for details.`,
         );
       }
     });
@@ -126,8 +128,10 @@ function App() {
       .then((favoriteState) => {
         setFavorites(favoriteState);
       })
-      .catch(() => {
-        setStatusMessage("Signed in, but could not read saved favorites yet.");
+      .catch((error) => {
+        const errorMessage = error instanceof Error ? error.message : "Unknown error";
+        console.error("Failed to fetch favorites:", error);
+        setStatusMessage(`Could not load favorites: ${errorMessage}`);
       });
   }, [userId]);
 
