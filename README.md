@@ -3,6 +3,15 @@
 This project is intentionally minimal.
 Authentication is already built in, and the workshop focuses on data loading plus favorites.
 
+## GitHub Codespaces Support
+
+This project is configured to work with GitHub Codespaces! Simply:
+1. Click the "Code" button on GitHub
+2. Select "Codespaces" tab
+3. Click "Create codespace on main"
+
+The environment will automatically set up with Node.js 20 and run `npm install`. See `.devcontainer/README.md` for more details.
+
 ## What is implemented now
 
 1. Users must create an account before any tables are visible.
@@ -47,6 +56,8 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
 Without these values, the app still runs but remains in placeholder mode.
+
+**For GitHub Codespaces:** You can either create `.env.local` manually or set up Codespaces secrets for reusable credentials across multiple codespaces.
 
 ## Supabase tables expected
 
