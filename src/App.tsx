@@ -1,121 +1,518 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { useEffect, useState, type FormEvent } from "react";
+import "./App.css";
+import {
+  type Artist,
+  type Museum,
+  type Work,
+  fetchArtists,
+  fetchMuseums,
+  fetchWorks,
+} from "./services/artData";
+import {
+  type FavoriteState,
+  fetchUserFavorites,
+  setFavoriteArtist,
+  setFavoriteMuseum,
+  setFavoriteWork,
+} from "./services/favorites";
+import { getSupabaseClient, isSupabaseConfigured } from "./lib/supabase";
+
+type ActiveTab = "paintings" | "artists" | "museums";
+type AuthMode = "signin" | "signup";
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [activeTab, setActiveTab] = useState<ActiveTab>("paintings");
+  const [works, setWorks] = useState<Work[]>([]);
+  const [artists, setArtists] = useState<Artist[]>([]);
+  const [museums, setMuseums] = useState<Museum[]>([]);
+  const [statusMessage, setStatusMessage] = useState("");
+
+  const [userId, setUserId] = useState<string | null>(null);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<AuthMode>("signin");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState("");
+
+  const [favorites, setFavorites] = useState<FavoriteState>({
+    favorite_artist: null,
+    favorite_work: null,
+    favorite_museum: null,
+  });
+  const [favoriteSavingKey, setFavoriteSavingKey] = useState<string | null>(
+    null,
+  );
+
+  useEffect(() => {
+    const client = getSupabaseClient();
+    if (!client) {
+      return;
+    }
+
+    client.auth
+      .getSession()
+      .then(({ data }) => {
+        const nextUserId = data.session?.user.id ?? null;
+        setUserId(nextUserId);
+      })
+      .catch(() => {
+        setStatusMessage("Could not restore session.");
+      });
+
+    const { data } = client.auth.onAuthStateChange((_event, session) => {
+      const nextUserId = session?.user.id ?? null;
+      setUserId(nextUserId);
+    });
+
+    return () => {
+      data.subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured()) {
+      setStatusMessage(
+        "Supabase is not configured yet. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to start loading data.",
+      );
+      return;
+    }
+
+    let isCancelled = false;
+
+    const loadData = async () => {
+      const [workRows, artistRows, museumRows] = await Promise.all([
+        fetchWorks(),
+        fetchArtists(),
+        fetchMuseums(),
+      ]);
+
+      if (isCancelled) {
+        return;
+      }
+
+      setWorks(workRows);
+      setArtists(artistRows);
+      setMuseums(museumRows);
+
+      if (
+        workRows.length === 0 &&
+        artistRows.length === 0 &&
+        museumRows.length === 0
+      ) {
+        setStatusMessage(
+          "No data rows yet. Load table data in Supabase during the workshop.",
+        );
+      } else {
+        setStatusMessage("");
+      }
+    };
+
+    loadData().catch(() => {
+      if (!isCancelled) {
+        setStatusMessage(
+          "Could not fetch records yet. Continue wiring queries during the workshop.",
+        );
+      }
+    });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!userId) {
+      setFavorites({
+        favorite_artist: null,
+        favorite_work: null,
+        favorite_museum: null,
+      });
+      return;
+    }
+
+    fetchUserFavorites(userId)
+      .then((favoriteState) => {
+        setFavorites(favoriteState);
+      })
+      .catch(() => {
+        setStatusMessage("Signed in, but could not read saved favorites yet.");
+      });
+  }, [userId]);
+
+  const handleAuthSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const client = getSupabaseClient();
+    if (!client) {
+      setAuthError("Set Supabase environment keys before signing in.");
+      return;
+    }
+
+    setAuthLoading(true);
+    setAuthError("");
+
+    const authAction =
+      authMode === "signup"
+        ? client.auth.signUp({ email, password })
+        : client.auth.signInWithPassword({ email, password });
+
+    const { data, error } = await authAction;
+    setAuthLoading(false);
+
+    if (error) {
+      setAuthError(error.message);
+      return;
+    }
+
+    const nextUserId = data.user?.id ?? data.session?.user.id ?? null;
+    setUserId(nextUserId);
+    setEmail("");
+    setPassword("");
+    setAuthOpen(false);
+    setStatusMessage("");
+  };
+
+  const handleSignOut = async () => {
+    const client = getSupabaseClient();
+    if (!client) {
+      return;
+    }
+
+    const { error } = await client.auth.signOut();
+    if (error) {
+      setStatusMessage("Could not sign out. Try again.");
+      return;
+    }
+
+    setUserId(null);
+    setStatusMessage("");
+  };
+
+  const requireSignIn = () => {
+    if (userId) {
+      return true;
+    }
+
+    setAuthOpen(true);
+    setStatusMessage("Sign in first to save favorites.");
+    return false;
+  };
+
+  const saveArtistFavorite = async (artistId: number) => {
+    if (!userId || !requireSignIn()) {
+      return;
+    }
+
+    setFavoriteSavingKey(`artist-${artistId}`);
+    const errorMessage = await setFavoriteArtist(userId, artistId);
+    setFavoriteSavingKey(null);
+
+    if (errorMessage) {
+      setStatusMessage(errorMessage);
+      return;
+    }
+
+    setFavorites((current) => ({ ...current, favorite_artist: artistId }));
+    setStatusMessage("Favorite artist saved.");
+  };
+
+  const saveWorkFavorite = async (workId: number) => {
+    if (!userId || !requireSignIn()) {
+      return;
+    }
+
+    setFavoriteSavingKey(`work-${workId}`);
+    const errorMessage = await setFavoriteWork(userId, workId);
+    setFavoriteSavingKey(null);
+
+    if (errorMessage) {
+      setStatusMessage(errorMessage);
+      return;
+    }
+
+    setFavorites((current) => ({ ...current, favorite_work: workId }));
+    setStatusMessage("Favorite painting saved.");
+  };
+
+  const saveMuseumFavorite = async (museumId: number) => {
+    if (!userId || !requireSignIn()) {
+      return;
+    }
+
+    setFavoriteSavingKey(`museum-${museumId}`);
+    const errorMessage = await setFavoriteMuseum(userId, museumId);
+    setFavoriteSavingKey(null);
+
+    if (errorMessage) {
+      setStatusMessage(errorMessage);
+      return;
+    }
+
+    setFavorites((current) => ({ ...current, favorite_museum: museumId }));
+    setStatusMessage("Favorite museum saved.");
+  };
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
+    <main className="app-shell">
+      <header className="app-header">
         <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
+          <h1>Art Workshop Demo</h1>
+          <p className="subtitle">Minimal app shell for Supabase wiring.</p>
         </div>
+        <div className="auth-area">
+          {userId ? (
+            <button className="button" onClick={handleSignOut} type="button">
+              Sign out
+            </button>
+          ) : (
+            <button
+              className="button"
+              onClick={() => setAuthOpen((isOpen) => !isOpen)}
+              type="button"
+            >
+              Sign in
+            </button>
+          )}
+        </div>
+      </header>
+
+      {!userId && authOpen ? (
+        <section className="auth-panel" aria-label="Authentication form">
+          <h2>{authMode === "signup" ? "Create account" : "Sign in"}</h2>
+          <form onSubmit={handleAuthSubmit}>
+            <label>
+              Email
+              <input
+                autoComplete="email"
+                onChange={(event) => setEmail(event.target.value)}
+                required
+                type="email"
+                value={email}
+              />
+            </label>
+            <label>
+              Password
+              <input
+                autoComplete={
+                  authMode === "signup" ? "new-password" : "current-password"
+                }
+                minLength={6}
+                onChange={(event) => setPassword(event.target.value)}
+                required
+                type="password"
+                value={password}
+              />
+            </label>
+            {authError ? <p className="error-text">{authError}</p> : null}
+            <div className="auth-actions">
+              <button className="button" disabled={authLoading} type="submit">
+                {authLoading
+                  ? "Working..."
+                  : authMode === "signup"
+                    ? "Sign up"
+                    : "Sign in"}
+              </button>
+              <button
+                className="button button-alt"
+                disabled={authLoading}
+                onClick={() =>
+                  setAuthMode((currentMode) =>
+                    currentMode === "signup" ? "signin" : "signup",
+                  )
+                }
+                type="button"
+              >
+                {authMode === "signup"
+                  ? "Switch to sign in"
+                  : "Switch to sign up"}
+              </button>
+            </div>
+          </form>
+        </section>
+      ) : null}
+
+      <nav className="tabs" aria-label="Data views">
         <button
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
+          className={activeTab === "paintings" ? "tab active" : "tab"}
+          onClick={() => setActiveTab("paintings")}
+          type="button"
         >
-          Count is {count}
+          Paintings
         </button>
+        <button
+          className={activeTab === "artists" ? "tab active" : "tab"}
+          onClick={() => setActiveTab("artists")}
+          type="button"
+        >
+          Artists
+        </button>
+        <button
+          className={activeTab === "museums" ? "tab active" : "tab"}
+          onClick={() => setActiveTab("museums")}
+          type="button"
+        >
+          Museums
+        </button>
+      </nav>
+
+      {statusMessage ? <p className="status-message">{statusMessage}</p> : null}
+
+      <section className="table-wrapper">
+        {activeTab === "paintings" ? (
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Artist ID</th>
+                <th>Museum ID</th>
+                <th>Favorite</th>
+              </tr>
+            </thead>
+            <tbody>
+              {works.length === 0 ? (
+                <tr>
+                  <td className="empty" colSpan={5}>
+                    No paintings to display.
+                  </td>
+                </tr>
+              ) : (
+                works.map((work) => (
+                  <tr key={work.work_id}>
+                    <td>{work.work_id}</td>
+                    <td>{work.name}</td>
+                    <td>{work.artist_id}</td>
+                    <td>{work.museum_id}</td>
+                    <td>
+                      <button
+                        className={
+                          favorites.favorite_work === work.work_id
+                            ? "favorite active"
+                            : "favorite"
+                        }
+                        disabled={
+                          !userId ||
+                          favoriteSavingKey === `work-${work.work_id}`
+                        }
+                        onClick={() => saveWorkFavorite(work.work_id)}
+                        type="button"
+                      >
+                        {favorites.favorite_work === work.work_id
+                          ? "Favorited"
+                          : "Favorite"}
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        ) : null}
+
+        {activeTab === "artists" ? (
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Nationality</th>
+                <th>Style</th>
+                <th>Favorite</th>
+              </tr>
+            </thead>
+            <tbody>
+              {artists.length === 0 ? (
+                <tr>
+                  <td className="empty" colSpan={5}>
+                    No artists to display.
+                  </td>
+                </tr>
+              ) : (
+                artists.map((artist) => (
+                  <tr key={artist.artist_id}>
+                    <td>{artist.artist_id}</td>
+                    <td>{artist.full_name}</td>
+                    <td>{artist.nationality || "-"}</td>
+                    <td>{artist.style || "-"}</td>
+                    <td>
+                      <button
+                        className={
+                          favorites.favorite_artist === artist.artist_id
+                            ? "favorite active"
+                            : "favorite"
+                        }
+                        disabled={
+                          !userId ||
+                          favoriteSavingKey === `artist-${artist.artist_id}`
+                        }
+                        onClick={() => saveArtistFavorite(artist.artist_id)}
+                        type="button"
+                      >
+                        {favorites.favorite_artist === artist.artist_id
+                          ? "Favorited"
+                          : "Favorite"}
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        ) : null}
+
+        {activeTab === "museums" ? (
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>City</th>
+                <th>Country</th>
+                <th>Favorite</th>
+              </tr>
+            </thead>
+            <tbody>
+              {museums.length === 0 ? (
+                <tr>
+                  <td className="empty" colSpan={5}>
+                    No museums to display.
+                  </td>
+                </tr>
+              ) : (
+                museums.map((museum) => (
+                  <tr key={museum.museum_id}>
+                    <td>{museum.museum_id}</td>
+                    <td>{museum.name}</td>
+                    <td>{museum.city || "-"}</td>
+                    <td>{museum.country || "-"}</td>
+                    <td>
+                      <button
+                        className={
+                          favorites.favorite_museum === museum.museum_id
+                            ? "favorite active"
+                            : "favorite"
+                        }
+                        disabled={
+                          !userId ||
+                          favoriteSavingKey === `museum-${museum.museum_id}`
+                        }
+                        onClick={() => saveMuseumFavorite(museum.museum_id)}
+                        type="button"
+                      >
+                        {favorites.favorite_museum === museum.museum_id
+                          ? "Favorited"
+                          : "Favorite"}
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        ) : null}
       </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+    </main>
+  );
 }
 
-export default App
+export default App;
