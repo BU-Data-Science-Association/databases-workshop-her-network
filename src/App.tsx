@@ -15,7 +15,6 @@ import {
 import { getSupabaseClient, isSupabaseConfigured } from "./lib/supabase";
 
 type ActiveTab = "paintings" | "artists";
-type AuthMode = "signin" | "signup";
 
 function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("paintings");
@@ -24,7 +23,6 @@ function App() {
   const [statusMessage, setStatusMessage] = useState("");
 
   const [userId, setUserId] = useState<string | null>(null);
-  const [authMode, setAuthMode] = useState<AuthMode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
@@ -65,6 +63,12 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (!userId) {
+      setWorks([]);
+      setArtists([]);
+      return;
+    }
+
     if (!isSupabaseConfigured()) {
       setStatusMessage(
         "Supabase is not configured yet. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to start loading data.",
@@ -107,7 +111,7 @@ function App() {
     return () => {
       isCancelled = true;
     };
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     if (!userId) {
@@ -131,31 +135,40 @@ function App() {
     event.preventDefault();
     const client = getSupabaseClient();
     if (!client) {
-      setAuthError("Set Supabase environment keys before signing in.");
+      setAuthError("Set Supabase environment keys before continuing.");
       return;
     }
 
     setAuthLoading(true);
     setAuthError("");
 
-    const authAction =
-      authMode === "signup"
-        ? client.auth.signUp({ email, password })
-        : client.auth.signInWithPassword({ email, password });
+    // Try to create a new account
+    const signUpResult = await client.auth.signUp({ email, password });
 
-    const { data, error } = await authAction;
-    setAuthLoading(false);
+    // If signup succeeded (either with immediate session or pending confirmation)
+    if (!signUpResult.error) {
+      const nextUserId =
+        signUpResult.data.session?.user.id ??
+        signUpResult.data.user?.id ??
+        null;
+      setUserId(nextUserId);
+      setEmail("");
+      setPassword("");
 
-    if (error) {
-      setAuthError(error.message);
+      // Check if email confirmation is required
+      if (signUpResult.data.user && !signUpResult.data.session) {
+        setStatusMessage("Account created! Please check your email to confirm.");
+      } else {
+        setStatusMessage("");
+      }
+
+      setAuthLoading(false);
       return;
     }
 
-    const nextUserId = data.user?.id ?? data.session?.user.id ?? null;
-    setUserId(nextUserId);
-    setEmail("");
-    setPassword("");
-    setStatusMessage("");
+    // If signup failed, show the error - don't try to sign in
+    setAuthLoading(false);
+    setAuthError(signUpResult.error.message);
   };
 
   const handleSignOut = async () => {
@@ -216,7 +229,7 @@ function App() {
         <div>
           <h1>Art Workshop Demo</h1>
           <p className="subtitle">
-            Auth is prebuilt. Workshop focus is data + favorites.
+            Create an account or sign in to unlock the workshop tables.
           </p>
         </div>
         <div className="auth-area">
@@ -232,7 +245,7 @@ function App() {
 
       {!userId ? (
         <section className="auth-panel" aria-label="Authentication form">
-          <h2>{authMode === "signup" ? "Create account" : "Sign in"}</h2>
+          <h2>Create Account or Sign In</h2>
           <form onSubmit={handleAuthSubmit}>
             <label>
               Email
@@ -247,9 +260,7 @@ function App() {
             <label>
               Password
               <input
-                autoComplete={
-                  authMode === "signup" ? "new-password" : "current-password"
-                }
+                autoComplete="current-password"
                 minLength={6}
                 onChange={(event) => setPassword(event.target.value)}
                 required
@@ -260,164 +271,150 @@ function App() {
             {authError ? <p className="error-text">{authError}</p> : null}
             <div className="auth-actions">
               <button className="button" disabled={authLoading} type="submit">
-                {authLoading
-                  ? "Working..."
-                  : authMode === "signup"
-                    ? "Sign up"
-                    : "Sign in"}
-              </button>
-              <button
-                className="button button-alt"
-                disabled={authLoading}
-                onClick={() =>
-                  setAuthMode((currentMode) =>
-                    currentMode === "signup" ? "signin" : "signup",
-                  )
-                }
-                type="button"
-              >
-                {authMode === "signup"
-                  ? "Switch to sign in"
-                  : "Switch to sign up"}
+                {authLoading ? "Working..." : "Continue"}
               </button>
             </div>
           </form>
         </section>
       ) : null}
 
-      <nav className="tabs" aria-label="Data views">
-        <button
-          className={activeTab === "paintings" ? "tab active" : "tab"}
-          onClick={() => setActiveTab("paintings")}
-          type="button"
-        >
-          Paintings
-        </button>
-        <button
-          className={activeTab === "artists" ? "tab active" : "tab"}
-          onClick={() => setActiveTab("artists")}
-          type="button"
-        >
-          Artists
-        </button>
-      </nav>
+      {!userId ? null : (
+        <>
+          <nav className="tabs" aria-label="Data views">
+            <button
+              className={activeTab === "paintings" ? "tab active" : "tab"}
+              onClick={() => setActiveTab("paintings")}
+              type="button"
+            >
+              Paintings
+            </button>
+            <button
+              className={activeTab === "artists" ? "tab active" : "tab"}
+              onClick={() => setActiveTab("artists")}
+              type="button"
+            >
+              Artists
+            </button>
+          </nav>
 
-      {statusMessage ? <p className="status-message">{statusMessage}</p> : null}
+          {statusMessage ? (
+            <p className="status-message">{statusMessage}</p>
+          ) : null}
 
-      <section className="table-wrapper">
-        {activeTab === "paintings" ? (
-          <table>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Image</th>
-                <th>Name</th>
-                <th>Artist ID</th>
-                <th>Favorite</th>
-              </tr>
-            </thead>
-            <tbody>
-              {works.length === 0 ? (
-                <tr>
-                  <td className="empty" colSpan={5}>
-                    No paintings to display.
-                  </td>
-                </tr>
-              ) : (
-                works.map((work) => (
-                  <tr key={work.work_id}>
-                    <td>{work.work_id}</td>
-                    <td>
-                      {work.image_url ? (
-                        <img
-                          alt={work.name}
-                          className="work-image"
-                          loading="lazy"
-                          src={work.image_url}
-                        />
-                      ) : (
-                        <span className="empty-image">No image</span>
-                      )}
-                    </td>
-                    <td>{work.name}</td>
-                    <td>{work.artist_id}</td>
-                    <td>
-                      <button
-                        className={
-                          favorites.favorite_work === work.work_id
-                            ? "favorite active"
-                            : "favorite"
-                        }
-                        disabled={
-                          !userId ||
-                          favoriteSavingKey === `work-${work.work_id}`
-                        }
-                        onClick={() => saveWorkFavorite(work.work_id)}
-                        type="button"
-                      >
-                        {favorites.favorite_work === work.work_id
-                          ? "Favorited"
-                          : "Favorite"}
-                      </button>
-                    </td>
+          <section className="table-wrapper">
+            {activeTab === "paintings" ? (
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Image</th>
+                    <th>Name</th>
+                    <th>Artist ID</th>
+                    <th>Favorite</th>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        ) : null}
+                </thead>
+                <tbody>
+                  {works.length === 0 ? (
+                    <tr>
+                      <td className="empty" colSpan={5}>
+                        No paintings to display.
+                      </td>
+                    </tr>
+                  ) : (
+                    works.map((work) => (
+                      <tr key={work.work_id}>
+                        <td>{work.work_id}</td>
+                        <td>
+                          {work.image_url ? (
+                            <img
+                              alt={work.name}
+                              className="work-image"
+                              loading="lazy"
+                              src={work.image_url}
+                            />
+                          ) : (
+                            <span className="empty-image">No image</span>
+                          )}
+                        </td>
+                        <td>{work.name}</td>
+                        <td>{work.artist_id}</td>
+                        <td>
+                          <button
+                            className={
+                              favorites.favorite_work === work.work_id
+                                ? "favorite active"
+                                : "favorite"
+                            }
+                            disabled={
+                              favoriteSavingKey === `work-${work.work_id}`
+                            }
+                            onClick={() => saveWorkFavorite(work.work_id)}
+                            type="button"
+                          >
+                            {favorites.favorite_work === work.work_id
+                              ? "Favorited"
+                              : "Favorite"}
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            ) : null}
 
-        {activeTab === "artists" ? (
-          <table>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Name</th>
-                <th>Nationality</th>
-                <th>Style</th>
-                <th>Favorite</th>
-              </tr>
-            </thead>
-            <tbody>
-              {artists.length === 0 ? (
-                <tr>
-                  <td className="empty" colSpan={5}>
-                    No artists to display.
-                  </td>
-                </tr>
-              ) : (
-                artists.map((artist) => (
-                  <tr key={artist.artist_id}>
-                    <td>{artist.artist_id}</td>
-                    <td>{artist.full_name}</td>
-                    <td>{artist.nationality || "-"}</td>
-                    <td>{artist.style || "-"}</td>
-                    <td>
-                      <button
-                        className={
-                          favorites.favorite_artist === artist.artist_id
-                            ? "favorite active"
-                            : "favorite"
-                        }
-                        disabled={
-                          !userId ||
-                          favoriteSavingKey === `artist-${artist.artist_id}`
-                        }
-                        onClick={() => saveArtistFavorite(artist.artist_id)}
-                        type="button"
-                      >
-                        {favorites.favorite_artist === artist.artist_id
-                          ? "Favorited"
-                          : "Favorite"}
-                      </button>
-                    </td>
+            {activeTab === "artists" ? (
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Nationality</th>
+                    <th>Style</th>
+                    <th>Favorite</th>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        ) : null}
-      </section>
+                </thead>
+                <tbody>
+                  {artists.length === 0 ? (
+                    <tr>
+                      <td className="empty" colSpan={5}>
+                        No artists to display.
+                      </td>
+                    </tr>
+                  ) : (
+                    artists.map((artist) => (
+                      <tr key={artist.artist_id}>
+                        <td>{artist.artist_id}</td>
+                        <td>{artist.full_name}</td>
+                        <td>{artist.nationality || "-"}</td>
+                        <td>{artist.style || "-"}</td>
+                        <td>
+                          <button
+                            className={
+                              favorites.favorite_artist === artist.artist_id
+                                ? "favorite active"
+                                : "favorite"
+                            }
+                            disabled={
+                              favoriteSavingKey === `artist-${artist.artist_id}`
+                            }
+                            onClick={() => saveArtistFavorite(artist.artist_id)}
+                            type="button"
+                          >
+                            {favorites.favorite_artist === artist.artist_id
+                              ? "Favorited"
+                              : "Favorite"}
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            ) : null}
+          </section>
+        </>
+      )}
     </main>
   );
 }

@@ -12,32 +12,38 @@ const initialFavoriteState: FavoriteState = {
 
 const tableName = "user";
 
+const ensureUserRow = async (userId: string): Promise<string | null> => {
+  const client = getSupabaseClient();
+  if (!client) {
+    return "Supabase is not configured.";
+  }
+
+  const { error } = await client.from(tableName).upsert({ id: userId });
+  return error ? error.message : null;
+};
+
 const readFavoriteRecord = async (userId: string) => {
   const client = getSupabaseClient();
   if (!client) {
     return { data: null, error: "Supabase is not configured." };
   }
 
-  const byId = await client
+  const ensureError = await ensureUserRow(userId);
+  if (ensureError) {
+    return { data: null, error: ensureError };
+  }
+
+  const result = await client
     .from(tableName)
     .select("favorite_artist, favorite_work")
     .eq("id", userId)
     .maybeSingle();
 
-  if (!byId.error) {
-    return { data: byId.data, error: null };
+  if (result.error) {
+    return { data: null, error: result.error.message };
   }
 
-  const byUserId = await client
-    .from(tableName)
-    .select("favorite_artist, favorite_work")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  return {
-    data: byUserId.data,
-    error: byUserId.error?.message ?? byId.error.message,
-  };
+  return { data: result.data, error: null };
 };
 
 const updateFavoriteRecord = async (
@@ -49,24 +55,21 @@ const updateFavoriteRecord = async (
     return "Supabase is not configured.";
   }
 
-  const updateById = await client
+  const ensureError = await ensureUserRow(userId);
+  if (ensureError) {
+    return ensureError;
+  }
+
+  const { error } = await client
     .from(tableName)
     .update(payload)
     .eq("id", userId);
-  if (!updateById.error) {
+
+  if (!error) {
     return null;
   }
 
-  const updateByUserId = await client
-    .from(tableName)
-    .update(payload)
-    .eq("user_id", userId);
-
-  if (!updateByUserId.error) {
-    return null;
-  }
-
-  return updateByUserId.error.message;
+  return error.message;
 };
 
 export const fetchUserFavorites = async (

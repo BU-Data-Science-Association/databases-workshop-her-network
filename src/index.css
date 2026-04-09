@@ -20,10 +20,7 @@
 }
 
 body {
-  background:
-    radial-gradient(circle at 90% 10%, #dff0d8 0, rgba(223, 240, 216, 0) 40%),
-    radial-gradient(circle at 10% 100%, #ffe9d6 0, rgba(255, 233, 214, 0) 45%),
-    var(--page);
+  background: var(--page);
   margin: 0;
 }
 
