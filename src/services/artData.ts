@@ -1,6 +1,46 @@
 import { getSupabaseClient } from "../lib/supabase";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+// -------------------------------------------------------------------------------------------------
+// WORKSHOP HERE
+// -------------------------------------------------------------------------------------------------
+
+const fetchArtistRows = async (
+  client: SupabaseClient,
+): Promise<ArtistRow[]> => {
+  const { data, error } = await client
+    .from("artist")
+    .select("artist_id, full_name, nationality, style")
+    .order("artist_id", { ascending: true })
+    .limit(200);
+
+  if (error) {
+    console.error("Error fetching artists:", error);
+    throw new Error(`Failed to fetch artists: ${error.message}`);
+  }
+
+  return (data as ArtistRow[] | null) ?? [];
+};
+
+const fetchWorkRows = async (client: SupabaseClient): Promise<WorkRow[]> => {
+  const { data, error } = await client
+    .from("work")
+    .select("work_id, name, artist_id")
+    .order("work_id", { ascending: true })
+    .limit(200);
+
+  if (error) {
+    console.error("Error fetching works:", error);
+    throw new Error(`Failed to fetch works: ${error.message}`);
+  }
+
+  return (data as WorkRow[] | null) ?? [];
+};
+
+// -------------------------------------------------------------------------------------------------
+//
+// -------------------------------------------------------------------------------------------------
+
 export type Artist = {
   artist_id: number;
   full_name: string;
@@ -37,38 +77,6 @@ type ImageLinkRow = {
 
 const getClient = (): SupabaseClient | null => {
   return getSupabaseClient();
-};
-
-const fetchArtistRows = async (
-  client: SupabaseClient,
-): Promise<ArtistRow[]> => {
-  const { data, error } = await client
-    .from("artist")
-    .select("artist_id, full_name, nationality, style")
-    .order("artist_id", { ascending: true })
-    .limit(200);
-
-  if (error) {
-    console.error("Error fetching artists:", error);
-    throw new Error(`Failed to fetch artists: ${error.message}`);
-  }
-
-  return (data as ArtistRow[] | null) ?? [];
-};
-
-const fetchWorkRows = async (client: SupabaseClient): Promise<WorkRow[]> => {
-  const { data, error } = await client
-    .from("work")
-    .select("work_id, name, artist_id")
-    .order("work_id", { ascending: true })
-    .limit(200);
-
-  if (error) {
-    console.error("Error fetching works:", error);
-    throw new Error(`Failed to fetch works: ${error.message}`);
-  }
-
-  return (data as WorkRow[] | null) ?? [];
 };
 
 const fetchImageLinkRows = async (
