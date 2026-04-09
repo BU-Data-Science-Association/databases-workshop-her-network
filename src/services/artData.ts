@@ -2,17 +2,19 @@ import { getSupabaseClient } from "../lib/supabase";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 // -------------------------------------------------------------------------------------------------
-// WORKSHOP HERE
+//  WORKSHOP HERE
 // -------------------------------------------------------------------------------------------------
 
 const fetchArtistRows = async (
   client: SupabaseClient,
 ): Promise<ArtistRow[]> => {
-  const { data, error } = await client
-    .from("artist")
-    .select("artist_id, full_name, nationality, style")
-    .order("artist_id", { ascending: true })
-    .limit(200);
+  // -------------------------------------------------------------------------------------------------
+  //    TODO: Write SQL queries to grab the correct artist rows )
+  //    Columns -> artist_id, full_name, nationality, style
+  //
+  //    Hint: use .from() .select() .order() .limit()
+  // -------------------------------------------------------------------------------------------------
+  const { data, error } = await client.from("");
 
   if (error) {
     console.error("Error fetching artists:", error);
@@ -23,11 +25,13 @@ const fetchArtistRows = async (
 };
 
 const fetchWorkRows = async (client: SupabaseClient): Promise<WorkRow[]> => {
-  const { data, error } = await client
-    .from("work")
-    .select("work_id, name, artist_id")
-    .order("work_id", { ascending: true })
-    .limit(200);
+  // -------------------------------------------------------------------------------------------------
+  //    TODO: Write SQL queries to grab the correct artist rows )
+  //    Columns -> work_id, name, artist_id
+  //
+  //    Hint: use .from() .select() .order() .limit()
+  // -------------------------------------------------------------------------------------------------
+  const { data, error } = await client.from("");
 
   if (error) {
     console.error("Error fetching works:", error);
