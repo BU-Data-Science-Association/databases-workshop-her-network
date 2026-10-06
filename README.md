@@ -1,4 +1,4 @@
-# BU DSA x Boston Hacks Databases Workshop: Supabase Art Explorer
+# BU DSA x HerNetwork SQL Workshop: Supabase Art Explorer
 
 Learn Supabase fundamentals by building an authenticated art gallery with user favorites. Authentication is pre-built. You will focus on database setup, data loading, and user-specific data.
 
